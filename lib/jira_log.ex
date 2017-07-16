@@ -1,4 +1,5 @@
 defmodule JiraLog do
+  require IEx
 
   defp user do
     domain = Application.get_env(:jira_log, :server)
@@ -7,13 +8,24 @@ defmodule JiraLog do
     %JiraUser{server: domain, user: user, pass: pass}
   end
 
+  defp today_user_filter do
+    user = Application.get_env(:jira_log, :user)
+    %WorklogFilter{user: user}
+  end
+
+  defp headers(user, pass) do
+    token = Base.encode64("#{user}:#{pass}")
+    ["Authorization": "Basic #{token}"]
+  end
+
   @doc """
   Retrieves the issues modified on the current date for the current user
+  The issues are returned as a list of tuples (issue_id, description)
   """
-  def query, do: query(user)
-  def query(%JiraUser{:server => server, user: user, pass: pass}) do
+  def query, do: query(user())
+  def query(%JiraUser{server: server, user: user, pass: pass}) do
     #query = "assignee = currentUser()"
-    query = "worklogAuthor = currentUser() AND worklogDate >= startOfDay()"
+    query = "worklogAuthor = currentUser() AND worklogDate >= 2017-07-01"
     fields = "key,summary"
     search_url = "#{server}/rest/api/2/search?jql=#{query}&fields=#{fields}&maxResults=10000"
     case HTTPoison.get! URI.encode(search_url), headers(user, pass) do 
@@ -27,24 +39,23 @@ defmodule JiraLog do
   @doc """
   List all the worklog items on the current date for the current user
   """
-  def list_logs, do: list_logs(user)
-  def list_logs(%JiraUser{} = user) do
+  def list_logs, do: list_logs(today_user_filter(), user())
+  def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
     query(user)
-    |> Enum.map(&(time_for_issue(user, &1)))
+    |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
   end
 
   @doc """
   Print the total amount of worklog for the current user
   """
   def times do
-    list  = list_logs
+    list  = list_logs()
     list
     |> Stream.flat_map(&(&1.times)) 
-    |> Stream.filter(&(elem(&1, 0) == "egonzales@kcura.com")) 
-    |> Stream.map(&(elem(&1, 1))) 
+    |> Stream.map(&(&1.seconds)) 
     |> Enum.reduce(0, &+/2)
     |> format_seconds
-    |> IO.puts
+    |> IO.puts 
 
     list
     |> Enum.each(&IO.inspect/1)
@@ -60,25 +71,34 @@ defmodule JiraLog do
     |> Enum.map(fn item -> {item["key"], item["fields"]["summary"]} end)
   end
 
-  defp time_for_issue(%JiraUser{server: server, user: user, pass: pass},
-                      {id, _} = issue) do
-    url = "#{server}/rest/api/2/issue/#{id}/worklog"
+  defp worklogs_for_issue(%JiraUser{server: server, user: user, pass: pass},
+                          {issue_id, description},
+    %WorklogFilter{} = filter
+  ) do
+    url = "#{server}/rest/api/2/issue/#{issue_id}/worklog"
     %HTTPoison.Response{status_code: 200, body: body} = HTTPoison.get! url, headers(user, pass)
     times = 
       body
       |> Poison.decode!
-      |> extract_time
-    %{issue: issue, times: times}
+      |> extract_worklog(filter)
+    %{issue: issue_id, description: description, times: times}
   end
 
-  defp headers(user, pass) do
-    token = Base.encode64("#{user}:#{pass}")
-    ["Authorization": "Basic #{token}"]
-  end
-
-  defp extract_time(response) do
+  defp extract_worklog(response, %WorklogFilter{user: user}) do
     response["worklogs"]
-    |> Enum.map(fn item -> {item["author"]["emailAddress"], item["timeSpentSeconds"]} end) 
+    |> Stream.filter(fn item ->
+      item["author"]["emailAddress"] == user or item["author"]["key"] == user
+    end)
+    |> Enum.map(fn item -> 
+      %JiraWorklog{
+        user: item["author"]["emailAddress"],
+        seconds: item["timeSpentSeconds"],
+        created: item["created"],
+        started: item["started"],
+        time_spent: item["timeSpent"],
+        comment: item["comment"]
+      }
+    end) 
   end
 
 end
