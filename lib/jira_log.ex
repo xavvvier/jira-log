@@ -1,52 +1,6 @@
 defmodule JiraLog do
   require IEx
 
-  defp user do
-    domain = Application.get_env(:jira_log, :server)
-    user = Application.get_env(:jira_log, :user)
-    pass = Application.get_env(:jira_log, :pass)
-    %JiraUser{server: domain, user: user, pass: pass}
-  end
-
-  defp today_user_filter do
-    user = Application.get_env(:jira_log, :user)
-    {erl_date, _} = :calendar.local_time()
-    {:ok, date} = Date.from_erl(erl_date)
-    iso_date = Date.to_iso8601(date)
-    %WorklogFilter{user: user, date: iso_date}
-  end
-
-  defp headers(user, pass) do
-    token = Base.encode64("#{user}:#{pass}")
-    ["Authorization": "Basic #{token}"]
-  end
-
-  @doc """
-  Retrieves the issues modified on the current date for the current user
-  The issues are returned as a list of tuples (issue_id, description)
-  """
-  def query(%JiraUser{server: server, user: user, pass: pass}, date) do
-    #query = "assignee = currentUser()"
-    query = "worklogAuthor = currentUser() AND worklogDate = #{date}"
-    fields = "key,summary"
-    search_url = "#{server}/rest/api/2/search?jql=#{query}&fields=#{fields}&maxResults=10000"
-    case HTTPoison.get! URI.encode(search_url), headers(user, pass) do 
-      %HTTPoison.Response{status_code: 200, body: body} ->
-      body
-      |> Poison.decode!
-      |> list_of_issues
-    end
-  end
-
-  @doc """
-  List all the worklog items on the current date for the current user
-  """
-  def list_logs, do: list_logs(today_user_filter(), user())
-  def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
-    query(user, filter.date)
-    |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
-  end
-
   @doc """
   Print the total amount of worklog for the current user
   """
@@ -61,6 +15,63 @@ defmodule JiraLog do
 
     list
     |> Enum.each(&IO.inspect/1)
+  end
+
+  @doc """
+  List all the worklog items on the current date for the current user
+  """
+  def list_logs, do: list_logs(today_user_filter(), user())
+  def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
+    query(user, filter)
+    |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
+  end
+
+  defp user do
+    domain = Application.get_env(:jira_log, :server)
+    user = Application.get_env(:jira_log, :user)
+    pass = Application.get_env(:jira_log, :pass)
+    %JiraUser{server: domain, user: user, pass: pass}
+  end
+
+  defp today_user_filter do
+    user = Application.get_env(:jira_log, :user)
+    {erl_date, _} = :calendar.local_time()
+    date = Date.from_erl!(erl_date)
+    %WorklogFilter{user: user, date_from: date, date_to: date}
+  end
+
+  defp headers(user, pass) do
+    token = Base.encode64("#{user}:#{pass}")
+    ["Authorization": "Basic #{token}"]
+  end
+
+  defp build_jql(%WorklogFilter{user: u, date_from: df, date_to: dt}) do
+    date1 = Date.to_iso8601(df)
+    date2 = Date.to_iso8601(dt)
+    cond do
+      Date.compare(df, dt) == :eq ->
+        "worklogAuthor = currentUser() and worklogDate = #{date1}"
+      true -> 
+        "worklogAuthor = currentUser() and worklogDate >= #{date1} and worklogDate <= #{date2}"
+    end
+  end
+
+  @doc """
+  Retrieves the issues modified on the current date for the current user
+  The issues are returned as a list of tuples (issue_id, description)
+  """
+  def query(
+    %JiraUser{server: server, user: user, pass: pass}, 
+    %WorklogFilter{} = filter) do
+    jql = build_jql(filter)
+    fields = "key,summary"
+    search_url = "#{server}/rest/api/2/search?jql=#{jql}&fields=#{fields}&maxResults=10000"
+    case HTTPoison.get! URI.encode(search_url), headers(user, pass) do 
+      %HTTPoison.Response{status_code: 200, body: body} ->
+      body
+      |> Poison.decode!
+      |> list_of_issues
+    end
   end
 
   def format_seconds(seconds) do
@@ -90,7 +101,7 @@ defmodule JiraLog do
   defp filter(response, %WorklogFilter{}=filter) do
     response["worklogs"]
     |> filter_user(filter.user)
-    |> filter_date(filter.date)
+    |> filter_date(filter.date_from, filter.date_to)
   end
 
   defp filter_user(worklogs, ""), do: worklogs
@@ -102,11 +113,13 @@ defmodule JiraLog do
     end)
   end
 
-  defp filter_date(worklogs, ""), do: worklogs
-  defp filter_date(worklogs, date) do
+  defp filter_date(worklogs, date1, date2) do
     worklogs
     |> Stream.filter(fn item -> 
-      String.starts_with?(item["started"], date) 
+      started = item["started"]
+      |> String.slice(0..9)
+      |> Date.from_iso8601!
+      started >= date1 && started <= date2
     end)
   end
 
