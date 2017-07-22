@@ -2,7 +2,7 @@ defmodule JiraLog do
   require IEx
 
   @doc """
-  Print the total amount of worklog for the current user
+  Print the total amount of worklog for the current user.
   """
   def times do
     list  = list_logs()
@@ -21,6 +21,15 @@ defmodule JiraLog do
   List all the worklog items on the current date for the current user
   """
   def list_logs, do: list_logs(today_user_filter(), user())
+  @doc """
+  List all the worklog items using a filter.
+  
+  ## Example:
+  `JiraLog.list_logs(
+    %WorklogFilter{user: "myuser", date_from: ~D[2017-07-01], date_to: ~D[2017-07-30]},
+    %JiraUser{server: "http://myserver.com", user: "user", pass: "xyz"}
+  )`
+  """
   def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
     query(user, filter)
     |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
@@ -45,14 +54,14 @@ defmodule JiraLog do
     ["Authorization": "Basic #{token}"]
   end
 
-  defp build_jql(%WorklogFilter{user: u, date_from: df, date_to: dt}) do
+  defp build_jql(%WorklogFilter{user: user, date_from: df, date_to: dt}) do
     date1 = Date.to_iso8601(df)
     date2 = Date.to_iso8601(dt)
     cond do
       Date.compare(df, dt) == :eq ->
-        "worklogAuthor = currentUser() and worklogDate = #{date1}"
+        ~s{worklogAuthor = "#{user}" and worklogDate = #{date1}}
       true -> 
-        "worklogAuthor = currentUser() and worklogDate >= #{date1} and worklogDate <= #{date2}"
+        ~s{worklogAuthor = "#{user}" and worklogDate >= #{date1} and worklogDate <= #{date2}}
     end
   end
 
