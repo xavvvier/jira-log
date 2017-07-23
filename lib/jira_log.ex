@@ -57,12 +57,19 @@ defmodule JiraLog do
   defp build_jql(%WorklogFilter{user: user, date_from: df, date_to: dt}) do
     date1 = Date.to_iso8601(df)
     date2 = Date.to_iso8601(dt)
+    user = format_user(user)
     cond do
       Date.compare(df, dt) == :eq ->
-        ~s{worklogAuthor = "#{user}" and worklogDate = #{date1}}
+        ~s{worklogAuthor = #{user} and worklogDate = #{date1}}
       true -> 
-        ~s{worklogAuthor = "#{user}" and worklogDate >= #{date1} and worklogDate <= #{date2}}
+        ~s{worklogAuthor = #{user} and worklogDate >= #{date1} and worklogDate <= #{date2}}
     end
+  end
+
+  defp format_user(nil), do: "currentUser()"
+  defp format_user(""), do: "currentUser()"
+  defp format_user(user) do
+    ~s("#{user}")
   end
 
   @doc """
