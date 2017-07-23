@@ -29,7 +29,7 @@ defmodule JiraLog.Mixfile do
   defp deps do
     [
       {:httpoison, "~> 0.12"},
-      {:poison, "~> 3.1"}
+      {:poison, "~> 2.0"}
     ]
   end
 end
