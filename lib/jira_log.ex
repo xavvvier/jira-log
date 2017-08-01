@@ -1,5 +1,27 @@
 defmodule JiraLog do
-  require IEx
+
+  @@doc """
+  List the properties (display_name, email_address, avatar) for the user
+  """
+  def myself, do: myself(user())
+  def myself(%JiraUser{server: server, user: user, pass: pass}) do
+    url = "#{server}/rest/api/2/myself"
+    case HTTPoison.get url, headers(user, pass) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        body
+        |> Poison.decode!
+        |> extract_user
+      _ -> nil
+    end
+  end
+
+  defp extract_user(response) do
+    %JiraUser{
+      display_name: response["displayName"],
+      email_address: response["emailAddress"],
+      avatar: response["avatarUrls"]["48x48"]
+    }
+  end
 
   @doc """
   Print the total amount of worklog for the current user.
