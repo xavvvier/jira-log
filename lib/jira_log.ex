@@ -1,6 +1,6 @@
 defmodule JiraLog do
 
-  @@doc """
+  @doc """
   List the properties (display_name, email_address, avatar) for the user
   """
   def myself, do: myself(user())
