@@ -157,8 +157,16 @@ defmodule JiraLog do
       started = item["started"]
       |> String.slice(0..9)
       |> Date.from_iso8601!
-      date1 >= started && started <= date2
+      date_gt_eq(started, date1) and date_lt_eq(started, date2)
     end)
+  end
+
+  defp date_gt_eq(date1, date2) do
+    Date.compare(date1, date2) == :gt or Date.compare(date1, date2) == :eq
+  end
+
+  defp date_lt_eq(date1, date2) do
+    Date.compare(date1, date2) == :lt or Date.compare(date1, date2) == :eq
   end
 
   defp extract_worklog(worklogs) do
