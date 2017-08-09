@@ -157,7 +157,7 @@ defmodule JiraLog do
       started = item["started"]
       |> String.slice(0..9)
       |> Date.from_iso8601!
-      started >= date1 && started <= date2
+      date1 >= started && started <= date2
     end)
   end
 
