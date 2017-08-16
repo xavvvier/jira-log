@@ -29,7 +29,6 @@ defmodule JiraLog do
   def times do
     list  = list_logs()
     list
-    |> Stream.flat_map(&(&1)) 
     |> Stream.map(&(&1.seconds)) 
     |> Enum.reduce(0, &+/2)
     |> format_seconds
@@ -55,6 +54,7 @@ defmodule JiraLog do
   def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
     query(user, filter)
     |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
+    |> Stream.flat_map(&(&1)) 
   end
 
   defp user do
