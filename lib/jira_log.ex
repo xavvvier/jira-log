@@ -29,7 +29,7 @@ defmodule JiraLog do
   def times do
     list  = list_logs()
     list
-    |> Stream.flat_map(&(&1.times)) 
+    |> Stream.flat_map(&(&1)) 
     |> Stream.map(&(&1.seconds)) 
     |> Enum.reduce(0, &+/2)
     |> format_seconds
@@ -128,12 +128,11 @@ defmodule JiraLog do
   ) do
     url = "#{server}/rest/api/2/issue/#{issue_id}/worklog"
     %HTTPoison.Response{status_code: 200, body: body} = HTTPoison.get! url, headers(user, pass)
-    times = 
       body
       |> Poison.decode!
       |> filter(filter)
       |> extract_worklog
-    %{issue: issue_id, description: description, times: times}
+      |> Enum.map(fn item -> %{ item | issue_id: issue_id, description: description} end)
   end
 
   defp filter(response, %WorklogFilter{}=filter) do
@@ -173,6 +172,7 @@ defmodule JiraLog do
     worklogs
     |> Enum.map(fn item -> 
       %JiraWorklog{
+        id: item["id"],
         user: item["author"]["emailAddress"],
         seconds: item["timeSpentSeconds"],
         created: item["created"],

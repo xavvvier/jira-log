@@ -1,3 +1,3 @@
 defmodule JiraWorklog do
-  defstruct user: "", seconds: 0, created: "", started: "", time_spent: "", comment: ""
+  defstruct id: "", issue_id: "", description: "", user: "", seconds: 0, created: "", started: "", time_spent: "", comment: ""
 end
