@@ -173,7 +173,7 @@ defmodule JiraLog do
     |> Enum.map(fn item -> 
       %JiraWorklog{
         id: item["id"],
-        user: item["author"]["emailAddress"],
+        user: item["author"]["displayName"],
         seconds: item["timeSpentSeconds"],
         created: item["created"],
         started: item["started"],
