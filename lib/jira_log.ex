@@ -146,7 +146,7 @@ defmodule JiraLog do
     worklogs
     |> Stream.filter(fn item ->
       item["author"]["emailAddress"] == user or 
-      item["author"]["key"] == user
+      item["author"]["name"] == user
     end)
   end
 
