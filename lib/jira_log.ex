@@ -1,9 +1,10 @@
 defmodule JiraLog do
+  import JiraUser, only: [headers: 2, config_user: 0]
 
   @doc """
   List the properties (display_name, email_address, avatar) for the user
   """
-  def myself, do: myself(user())
+  def myself, do: myself(config_user())
   def myself(%JiraUser{server: server, user: user, pass: pass}) do
     url = "#{server}/rest/api/2/myself"
     case HTTPoison.get url, headers(user, pass) do
@@ -41,7 +42,7 @@ defmodule JiraLog do
   @doc """
   List all the worklog items on the current date for the current user
   """
-  def list_logs, do: list_logs(today_user_filter(), user())
+  def list_logs, do: list_logs(today_user_filter(), config_user())
   @doc """
   List all the worklog items using a filter.
   
@@ -57,23 +58,12 @@ defmodule JiraLog do
     |> Stream.flat_map(&(&1)) 
   end
 
-  defp user do
-    domain = Application.get_env(:jira_log, :server)
-    user = Application.get_env(:jira_log, :user)
-    pass = Application.get_env(:jira_log, :pass)
-    %JiraUser{server: domain, user: user, pass: pass}
-  end
 
   defp today_user_filter do
     user = Application.get_env(:jira_log, :user)
     {erl_date, _} = :calendar.local_time()
     date = Date.from_erl!(erl_date)
     %WorklogFilter{user: user, date_from: date, date_to: date}
-  end
-
-  defp headers(user, pass) do
-    token = Base.encode64("#{user}:#{pass}")
-    ["Authorization": "Basic #{token}"]
   end
 
   defp build_jql(%WorklogFilter{user: user, date_from: df, date_to: dt}) do
