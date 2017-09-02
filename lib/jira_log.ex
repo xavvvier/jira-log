@@ -54,7 +54,8 @@ defmodule JiraLog do
   """
   def list_logs(%WorklogFilter{} = filter, %JiraUser{} = user) do
     query(user, filter)
-    |> Enum.map(&(worklogs_for_issue(user, &1, filter)))
+    |> Enum.map(&Task.async(fn -> worklogs_for_issue(user, &1, filter) end))
+    |> Enum.map(&Task.await(&1))
     |> Stream.flat_map(&(&1)) 
   end
 
