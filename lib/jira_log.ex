@@ -136,8 +136,8 @@ defmodule JiraLog do
   defp filter_user(worklogs, user) do
     worklogs
     |> Stream.filter(fn item ->
-      item["author"]["emailAddress"] == user or 
-      item["author"]["name"] == user
+      item["author"]["emailAddress"] == String.downcase(user) or 
+      item["author"]["name"] == String.downcase(user)
     end)
   end
 
